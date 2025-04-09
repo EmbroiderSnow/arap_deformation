@@ -2,7 +2,7 @@ remove:
 	rm -rf build/
 
 build:
-	mkdir -p build
+	# mkdir -p build
 	cd build && cmake .. && make VERBOSE=1
 
 rebuild:
@@ -10,3 +10,5 @@ rebuild:
 	mkdir -p build
 	cd build && cmake .. && make VERBOSE=1
 
+test:
+	cd build && ./arap-deformation ../data/deformation.obj
