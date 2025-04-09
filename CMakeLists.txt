@@ -18,11 +18,11 @@ file(GLOB_RECURSE SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/*.h"
 )
 
-# 打印找到的源文件（调试用）
-message(STATUS "Found sources: ${SOURCES}")
-
 add_executable(${PROJECT_NAME} ${SOURCES})
 target_link_libraries(${PROJECT_NAME} 
     OpenMeshCore 
     OpenMeshTools
 )
+
+# Enable C++11 for Eigen
+target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_11)
