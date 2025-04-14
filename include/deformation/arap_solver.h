@@ -33,4 +33,21 @@ private:
     Eigen::SparseMatrix<double> L_;        // Laplacian matrix
     std::vector<Eigen::Matrix3d> rotations_; // Per-vertex rotations
     double w_rot_, w_pos_;                 // Weights for energy terms
+
+    // Cell data for local step
+    struct Cell {
+        std::vector<Mesh::TriMesh::VertexHandle> neighbors;
+        std::vector<double> weights;
+        Eigen::Matrix3d rotation;
+        int index;
+    };
+
+    // Initialize per-vertex cell data
+    void initCellData();
+    
+    // Solve system using Eigen's sparse solver
+    Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver_;
+    std::vector<Cell> cells_;
+    Eigen::MatrixXd positions_;  // Current positions
+    Eigen::MatrixXd initial_positions_;  // Original positions
 };

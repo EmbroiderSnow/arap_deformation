@@ -13,7 +13,7 @@ void ARAPSolver::setWeight(double w_rot, double w_pos) {
 }
 
 double ARAPSolver::computeCotWeight(const Mesh::TriMesh::EdgeHandle& eh) const {
-    const auto& trimesh = mesh_.getMesh();
+    auto& trimesh = mesh_.getMesh();
     double weight = 0.0;
 
     // Get halfedges
@@ -86,4 +86,68 @@ void ARAPSolver::buildWeightMatrix() {
     // Create sparse matrix
     L_.resize(n_vertices, n_vertices);
     L_.setFromTriplets(triplets.begin(), triplets.end());
+}
+
+void ARAPSolver::initCellData() {
+    auto& trimesh = mesh_.getMesh();
+    int n_vertices = trimesh.n_vertices();
+    
+    cells_.resize(n_vertices);
+    positions_ = Eigen::MatrixXd::Zero(n_vertices, 3);
+    initial_positions_ = Eigen::MatrixXd::Zero(n_vertices, 3);
+    rotations_.resize(n_vertices, Eigen::Matrix3d::Identity());
+
+    // Initialize positions
+    for (auto vh : trimesh.vertices()) {
+        int idx = vh.idx();
+        Eigen::Vector3d p = getPosition(vh);
+        positions_.row(idx) = p;
+        initial_positions_.row(idx) = p;
+        
+        Cell& cell = cells_[idx];
+        cell.index = idx;
+
+        // Get neighbors and weights
+        for (auto voh_it = trimesh.voh_iter(vh); voh_it.is_valid(); ++voh_it) {
+            auto eh = trimesh.edge_handle(*voh_it);
+            auto vh_target = trimesh.to_vertex_handle(*voh_it);
+            
+            cell.neighbors.push_back(vh_target);
+            cell.weights.push_back(computeCotWeight(eh));
+        }
+    }
+}
+
+void ARAPSolver::estimateRotations() {
+    // For each vertex
+    for (auto& cell : cells_) {
+        Eigen::Matrix3d covariance = Eigen::Matrix3d::Zero();
+        
+        // Compute covariance matrix
+        for (size_t i = 0; i < cell.neighbors.size(); ++i) {
+            int j = cell.neighbors[i].idx();
+            double wij = cell.weights[i];
+            
+            Eigen::Vector3d pi = initial_positions_.row(cell.index);
+            Eigen::Vector3d pj = initial_positions_.row(j);
+            Eigen::Vector3d qi = positions_.row(cell.index);
+            Eigen::Vector3d qj = positions_.row(j);
+            
+            covariance += wij * (pj - pi) * (qj - qi).transpose();
+        }
+        
+        // SVD decomposition
+        Eigen::JacobiSVD<Eigen::Matrix3d> svd(covariance, Eigen::ComputeFullU | Eigen::ComputeFullV);
+        Eigen::Matrix3d U = svd.matrixU();
+        Eigen::Matrix3d V = svd.matrixV();
+        
+        // Compute rotation
+        cell.rotation = V * U.transpose();
+        if (cell.rotation.determinant() < 0) {
+            V.col(2) = -V.col(2);
+            cell.rotation = V * U.transpose();
+        }
+        
+        rotations_[cell.index] = cell.rotation;
+    }
 }
