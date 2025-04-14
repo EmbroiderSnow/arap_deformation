@@ -151,3 +151,72 @@ void ARAPSolver::estimateRotations() {
         rotations_[cell.index] = cell.rotation;
     }
 }
+
+bool ARAPSolver::solvePosition() {
+    const auto& trimesh = mesh_.getMesh();
+    int n_vertices = trimesh.n_vertices();
+    
+    // Build right-hand side
+    Eigen::MatrixXd b = Eigen::MatrixXd::Zero(n_vertices, 3);
+    
+    // For each vertex
+    for (const auto& cell : cells_) {
+        int i = cell.index;
+        
+        // Add rotated differential coordinates
+        for (size_t j = 0; j < cell.neighbors.size(); ++j) {
+            int neighbor_idx = cell.neighbors[j].idx();
+            double wij = cell.weights[j];
+            
+            Eigen::Vector3d diff = initial_positions_.row(neighbor_idx) - initial_positions_.row(i);
+            b.row(i) += 0.5 * wij * (rotations_[i] + rotations_[neighbor_idx]) * diff;
+        }
+    }
+    
+    // Add position constraints
+    for (const auto& constraint : mesh_.getHandleConstraints()) {
+        int idx = constraint.first.idx();
+        b.row(idx) = w_pos_ * constraint.second;
+        L_.coeffRef(idx, idx) += w_pos_;
+    }
+    
+    // Solve the system
+    solver_.compute(L_);
+    if (solver_.info() != Eigen::Success) {
+        return false;
+    }
+    
+    positions_ = solver_.solve(b);
+    return solver_.info() == Eigen::Success;
+}
+
+bool ARAPSolver::solve(int maxIterations) {
+    // Initialize cell data if not done
+    if (cells_.empty()) {
+        initCellData();
+    }
+    
+    // Local-global optimization
+    for (int iter = 0; iter < maxIterations; ++iter) {
+        // Local step: estimate rotations
+        estimateRotations();
+        
+        // Global step: solve for positions
+        if (!solvePosition()) {
+            std::cerr << "Failed to solve global step at iteration " << iter << std::endl;
+            return false;
+        }
+        
+        // Update mesh vertices
+        auto& trimesh = mesh_.getMesh();
+        for (auto vh : trimesh.vertices()) {
+            int idx = vh.idx();
+            OpenMesh::Vec3d new_pos(positions_(idx, 0), 
+                                  positions_(idx, 1), 
+                                  positions_(idx, 2));
+            trimesh.set_point(vh, new_pos);
+        }
+    }
+    
+    return true;
+}

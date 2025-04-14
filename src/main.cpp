@@ -32,9 +32,23 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    // Set a test constraint
+    Eigen::Vector3d new_pos(1.0, 0.0, 0.0);
+    mesh.setHandleConstraint(vh, new_pos);
+    
+    // Initialize and run solver
     ARAPSolver solver(mesh);
-    std::cout << "ARAP solver initialized successfully!" << std::endl;
-
+    if (!solver.solve(5)) {
+        std::cerr << "ARAP solving failed" << std::endl;
+        return 1;
+    }
+    
+    // Save deformed mesh
+    if (!mesh.save("deformed.obj")) {
+        std::cerr << "Failed to save deformed mesh" << std::endl;
+        return 1;
+    }
+    
     std::cout << "All tests passed!" << std::endl;
     #endif
 

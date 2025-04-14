@@ -33,6 +33,7 @@ public:
     // Handle constraints
     void setHandleConstraint(VertexHandle vh, const Eigen::Vector3d& position);
     void clearConstraints();
+    std::map<VertexHandle, Eigen::Vector3d> getHandleConstraints() const;
 
     // Get selected vertices
     std::vector<VertexHandle> getSelectedVertices() const;

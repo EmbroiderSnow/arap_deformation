@@ -73,6 +73,10 @@ void Mesh::clearConstraints() {
     handle_constraints_.clear();
 }
 
+std::map<Mesh::VertexHandle, Eigen::Vector3d> Mesh::getHandleConstraints() const {
+    return handle_constraints_;
+}
+
 std::vector<Mesh::VertexHandle> Mesh::getSelectedVertices() const {
     return selected_vertices_;
 }
