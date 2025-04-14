@@ -1,4 +1,5 @@
 #include "mesh/mesh.h"
+#include "deformation/arap_solver.h"
 #include <iostream>
 #define DEBUG
 
@@ -30,6 +31,9 @@ int main(int argc, char **argv) {
         std::cerr << "Vertex selection failed" << std::endl;
         return 1;
     }
+
+    ARAPSolver solver(mesh);
+    std::cout << "ARAP solver initialized successfully!" << std::endl;
 
     std::cout << "All tests passed!" << std::endl;
     #endif
