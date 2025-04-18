@@ -121,7 +121,7 @@ void MeshViewer::run(Mesh& mesh) {
     initializeMesh();
 
     solver_ = new ARAPSolver(*mesh_);
-    solver_->setWeight(1.0, 50.0); // 设置权重
+    solver_->setWeight(1.0, 1000.0); // 设置权重
     
     while (!glfwWindowShouldClose(window_)) {
         handleInput();
@@ -851,15 +851,15 @@ void MeshViewer::handleDeformation(double xpos, double ypos) {
     }
 
     auto& trimesh = mesh_->getMesh();
-    // std::vector<int> anchor_indices = {0, int(trimesh.n_vertices())/3, int(trimesh.n_vertices())-1};
-    // for (int idx : anchor_indices) {
-    //     if (idx >= 0 && idx < original_vertex_positions_.size()) {
-    //         auto vh = Mesh::VertexHandle(idx);
-    //         mesh_->setHandleConstraint(vh, original_vertex_positions_[idx]);
-    //     }
-    // }
+    std::vector<int> anchor_indices = {0, int(trimesh.n_vertices())/3, int(trimesh.n_vertices())-1};
+    for (int idx : anchor_indices) {
+        if (idx >= 0 && idx < original_vertex_positions_.size()) {
+            auto vh = Mesh::VertexHandle(idx);
+            mesh_->setHandleConstraint(vh, original_vertex_positions_[idx]);
+        }
+    }
 
-    if (solver_->solve(5)) {
+    if (solver_->solve(10)) {
         std::cout << "Deformation step completed" << std::endl;
         std::cout << "max_extent_: " << max_extent_ << std::endl;
         updateMeshBuffers();
