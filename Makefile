@@ -10,4 +10,4 @@ rebuild:
 	cd build && cmake .. && make VERBOSE=1
 
 test:
-	cd build && ./arap-deformation ../data/deformation.obj
+	cd build && ./arap-deformation ../data/deformation.obj 

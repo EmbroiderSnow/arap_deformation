@@ -1,5 +1,6 @@
 #pragma once
 #include "mesh/mesh.h"
+#include "deformation/arap_solver.h"
 #include "shader.h"
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
@@ -14,8 +15,11 @@ public:
     void run(Mesh& mesh);
 
 private:
+    int width_ = 1280;
+    int height_ = 720;
     void initGL();
     void renderMesh();
+    void initializeMesh();
     void handleInput();
     void renderUI();
 
@@ -24,7 +28,6 @@ private:
     std::optional<Mesh::VertexHandle> nearest_vertex_;
     bool selection_mode_ = false;
     bool dragging_ = false;
-    Eigen::Vector3d drag_start_;
 
     // OpenGL 渲染相关
     GLuint VAO_, VBO_, EBO_;
@@ -63,6 +66,27 @@ private:
 
     Eigen::Vector3f center_;      // 模型中心点
     float max_extent_ = 1.0f;     // 模型最大尺寸
+    float original_max_extent_ = 1.0f; // 原始模型最大尺寸
     GLuint selected_VAO_, selected_VBO_;  // 用于渲染选中点的缓冲区
     void updateSelectedVertices();         // 更新选中点的缓冲区
+
+    // 变形相关
+    bool deform_mode_ = false;          // 变形模式标志
+    bool is_dragging_ = false;          // 拖拽状态
+    ARAPSolver* solver_ = nullptr;      // ARAP求解器
+    std::map<int, Eigen::Vector3d> drag_initial_positions_;
+    Eigen::Vector3f drag_start_;        // 拖拽起点
+    Eigen::Vector3f drag_current_;      // 当前拖拽点
+
+    // 新增函数
+    void handleDeformation(double xpos, double ypos);
+    Eigen::Vector3f screenToWorld(double xpos, double ypos, float depth);
+    void updateMeshBuffers();           // 更新网格缓冲区
+    std::vector<Eigen::Vector3d> original_vertex_positions_;
+    bool is_initialized_ = false;  // 添加初始化标志
+
+    double last_click_x_ = 0.0;
+    double last_click_y_ = 0.0;
+    Eigen::Vector3f drag_start_world_;
+    double drag_start_x_ = 0.0, drag_start_y_ = 0.0;
 };

@@ -30,6 +30,7 @@ private:
     Eigen::Vector3d getPosition(const Mesh::TriMesh::VertexHandle& vh) const;
 
     Mesh& mesh_;
+    Eigen::SparseMatrix<double> L_base_;
     Eigen::SparseMatrix<double> L_;        // Laplacian matrix
     std::vector<Eigen::Matrix3d> rotations_; // Per-vertex rotations
     double w_rot_, w_pos_;                 // Weights for energy terms

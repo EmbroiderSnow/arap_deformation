@@ -2,7 +2,7 @@
 
 // 构造函数：初始化权重和构建Laplacian矩阵
 ARAPSolver::ARAPSolver(Mesh& mesh)
-    : mesh_(mesh), w_rot_(1.0), w_pos_(1000.0) {
+    : mesh_(mesh), w_rot_(1.0), w_pos_(10.0) {
     buildWeightMatrix();
 }
 
@@ -15,35 +15,27 @@ void ARAPSolver::setWeight(double w_rot, double w_pos) {
 double ARAPSolver::computeCotWeight(const Mesh::TriMesh::EdgeHandle& eh) const {
     auto& trimesh = mesh_.getMesh();
     double weight = 0.0;
-
-    // Get halfedges
     auto heh = trimesh.halfedge_handle(eh, 0);
     auto heh_opp = trimesh.halfedge_handle(eh, 1);
 
-    // For each halfedge, compute cotangent weight
     for (auto curr_heh : {heh, heh_opp}) {
         if (!trimesh.is_boundary(curr_heh)) {
-            // Get vertices
             auto v0 = trimesh.from_vertex_handle(curr_heh);
             auto v1 = trimesh.to_vertex_handle(curr_heh);
             auto v2 = trimesh.to_vertex_handle(trimesh.next_halfedge_handle(curr_heh));
-
-            // Get positions
             Eigen::Vector3d p0 = getPosition(v0);
             Eigen::Vector3d p1 = getPosition(v1);
             Eigen::Vector3d p2 = getPosition(v2);
-
-            // Compute vectors
             Eigen::Vector3d e1 = p2 - p0;
             Eigen::Vector3d e2 = p2 - p1;
-
-            // Compute cotangent
-            double cos_angle = e1.dot(e2) / (e1.norm() * e2.norm());
-            double sin_angle = (e1.cross(e2)).norm() / (e1.norm() * e2.norm());
+            double norm1 = e1.norm(), norm2 = e2.norm();
+            if (norm1 < 1e-8 || norm2 < 1e-8) continue;
+            double cos_angle = e1.dot(e2) / (norm1 * norm2);
+            double sin_angle = (e1.cross(e2)).norm() / (norm1 * norm2);
+            if (std::abs(sin_angle) < 1e-8) continue;
             weight += cos_angle / sin_angle;
         }
     }
-
     return weight * 0.5;
 }
 
@@ -73,6 +65,7 @@ void ARAPSolver::buildWeightMatrix() {
 
             // Compute cotangent weight
             double weight = computeCotWeight(eh);
+            weight = std::max(weight, 0.0);
             sum_weights += weight;
 
             // Add off-diagonal element
@@ -86,6 +79,7 @@ void ARAPSolver::buildWeightMatrix() {
     // Create sparse matrix
     L_.resize(n_vertices, n_vertices);
     L_.setFromTriplets(triplets.begin(), triplets.end());
+    L_base_ = L_;
 }
 
 void ARAPSolver::initCellData() {
@@ -111,9 +105,10 @@ void ARAPSolver::initCellData() {
         for (auto voh_it = trimesh.voh_iter(vh); voh_it.is_valid(); ++voh_it) {
             auto eh = trimesh.edge_handle(*voh_it);
             auto vh_target = trimesh.to_vertex_handle(*voh_it);
-            
+            double w = computeCotWeight(eh);
+            if (w <= 0.0) w = 0.0;
             cell.neighbors.push_back(vh_target);
-            cell.weights.push_back(computeCotWeight(eh));
+            cell.weights.push_back(w);
         }
     }
 }
@@ -158,6 +153,7 @@ bool ARAPSolver::solvePosition() {
     
     // Build right-hand side
     Eigen::MatrixXd b = Eigen::MatrixXd::Zero(n_vertices, 3);
+    L_ = L_base_;
     
     // For each vertex
     for (const auto& cell : cells_) {
@@ -185,8 +181,15 @@ bool ARAPSolver::solvePosition() {
     if (solver_.info() != Eigen::Success) {
         return false;
     }
-    
     positions_ = solver_.solve(b);
+    if ((positions_.array() != positions_.array()).any()) {
+        std::cerr << "ARAPSolver: Solution contains NaN!" << std::endl;
+        return false;
+    }
+    if ((positions_.array().abs() > 1e6).any()) {
+        std::cerr << "ARAPSolver: Solution diverged!" << std::endl;
+        return false;
+    }
     return solver_.info() == Eigen::Success;
 }
 
@@ -195,28 +198,30 @@ bool ARAPSolver::solve(int maxIterations) {
     if (cells_.empty()) {
         initCellData();
     }
-    
-    // Local-global optimization
+
     for (int iter = 0; iter < maxIterations; ++iter) {
+        // 关键：每次迭代前同步 initial_positions_
+        initial_positions_ = positions_;
+
         // Local step: estimate rotations
         estimateRotations();
-        
+
         // Global step: solve for positions
         if (!solvePosition()) {
             std::cerr << "Failed to solve global step at iteration " << iter << std::endl;
             return false;
         }
-        
+
         // Update mesh vertices
         auto& trimesh = mesh_.getMesh();
         for (auto vh : trimesh.vertices()) {
             int idx = vh.idx();
-            OpenMesh::Vec3d new_pos(positions_(idx, 0), 
-                                  positions_(idx, 1), 
-                                  positions_(idx, 2));
+            OpenMesh::Vec3d new_pos(positions_(idx, 0),
+                                    positions_(idx, 1),
+                                    positions_(idx, 2));
             trimesh.set_point(vh, new_pos);
         }
     }
-    
+
     return true;
 }

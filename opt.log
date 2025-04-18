@@ -1,0 +1,2 @@
+cd build && ./arap-deformation ../data/deformation.obj
+Loaded mesh with 2002 vertices, 4000 faces, and 6000 edges.
